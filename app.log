@@ -1,0 +1,65 @@
+2025-12-29 15:23:34,413 INFO: USB Forensics Tool started
+2025-12-29 15:23:45,590 INFO: Found 7 USB devices via WMI
+2025-12-29 15:23:45,624 INFO: Scanned 7 USB devices
+2025-12-29 15:24:00,423 INFO: Found 1 USB registry entries
+2025-12-29 15:24:00,843 INFO: Found 2 USB events in Event Log
+2025-12-29 15:24:00,843 INFO: Correlated 1 registry entries with 2 events into 2 device records
+2025-12-29 15:24:00,847 ERROR: Analysis failed: 'DeviceRecord' object is not iterable
+2025-12-29 15:24:08,000 INFO: Found 1 USB registry entries
+2025-12-29 15:24:08,407 INFO: Found 2 USB events in Event Log
+2025-12-29 15:24:08,407 INFO: Correlated 1 registry entries with 2 events into 2 device records
+2025-12-29 15:24:08,408 ERROR: Analysis failed: 'DeviceRecord' object is not iterable
+2025-12-29 15:24:42,071 INFO: Found 7 USB devices via WMI
+2025-12-29 15:24:42,078 INFO: Scanned 7 USB devices
+2025-12-29 15:24:42,755 INFO: Found 7 USB devices via WMI
+2025-12-29 15:24:42,760 INFO: Scanned 7 USB devices
+2025-12-29 15:24:42,937 INFO: Found 7 USB devices via WMI
+2025-12-29 15:24:42,942 INFO: Scanned 7 USB devices
+2025-12-29 15:24:45,737 INFO: Found 1 USB registry entries
+2025-12-29 15:24:46,140 INFO: Found 2 USB events in Event Log
+2025-12-29 15:24:46,140 INFO: Correlated 1 registry entries with 2 events into 2 device records
+2025-12-29 15:24:46,141 ERROR: Analysis failed: 'DeviceRecord' object is not iterable
+2025-12-29 15:25:02,147 INFO: Found 1 USB registry entries
+2025-12-29 15:25:02,535 INFO: Found 2 USB events in Event Log
+2025-12-29 15:25:02,535 INFO: Correlated 1 registry entries with 2 events into 2 device records
+2025-12-29 15:25:02,536 ERROR: Analysis failed: 'DeviceRecord' object is not iterable
+2025-12-29 15:25:52,893 INFO: Found 7 USB devices via WMI
+2025-12-29 15:25:52,895 INFO: Scanned 7 USB devices
+2025-12-29 15:25:53,028 INFO: Found 7 USB devices via WMI
+2025-12-29 15:25:53,030 INFO: Scanned 7 USB devices
+2025-12-29 15:25:53,480 INFO: Found 7 USB devices via WMI
+2025-12-29 15:25:53,482 INFO: Scanned 7 USB devices
+2025-12-29 15:25:53,630 INFO: Found 7 USB devices via WMI
+2025-12-29 15:25:53,632 INFO: Scanned 7 USB devices
+2025-12-29 15:25:53,761 INFO: Found 7 USB devices via WMI
+2025-12-29 15:25:53,763 INFO: Scanned 7 USB devices
+2025-12-29 15:25:56,857 INFO: Found 1 USB registry entries
+2025-12-29 15:25:57,237 INFO: Found 2 USB events in Event Log
+2025-12-29 15:25:57,237 INFO: Correlated 1 registry entries with 2 events into 2 device records
+2025-12-29 15:25:57,238 ERROR: Analysis failed: 'DeviceRecord' object is not iterable
+2025-12-29 15:26:51,107 INFO: USB Forensics Tool started
+2025-12-29 15:26:53,123 INFO: Found 7 USB devices via WMI
+2025-12-29 15:26:53,151 INFO: Scanned 7 USB devices
+2025-12-29 15:26:54,519 INFO: Found 1 USB registry entries
+2025-12-29 15:26:54,936 INFO: Found 2 USB events in Event Log
+2025-12-29 15:26:54,936 INFO: Correlated 1 registry entries with 2 events into 2 device records
+2025-12-29 15:28:21,591 INFO: USB Forensics Tool started
+2025-12-29 15:28:23,754 INFO: Found 1 USB registry entries
+2025-12-29 15:28:24,184 INFO: Found 2 USB events in Event Log
+2025-12-29 15:28:24,184 INFO: Correlated 1 registry entries with 2 events into 2 device records
+2025-12-29 15:28:27,143 INFO: Found 1 USB registry entries
+2025-12-29 15:28:27,535 INFO: Found 2 USB events in Event Log
+2025-12-29 15:28:27,536 INFO: Correlated 1 registry entries with 2 events into 2 device records
+2025-12-29 15:29:18,223 INFO: Found 7 USB devices via WMI
+2025-12-29 15:29:18,225 INFO: Scanned 7 USB devices
+2025-12-29 15:29:29,856 INFO: Found 1 USB registry entries
+2025-12-29 15:29:30,249 INFO: Found 2 USB events in Event Log
+2025-12-29 15:29:30,249 INFO: Correlated 1 registry entries with 2 events into 2 device records
+2025-12-29 15:29:31,800 INFO: Found 1 USB registry entries
+2025-12-29 15:29:32,195 INFO: Found 2 USB events in Event Log
+2025-12-29 15:29:32,195 INFO: Correlated 1 registry entries with 2 events into 2 device records
+2025-12-29 15:29:35,679 INFO: USB Forensics Tool started
+2025-12-29 15:29:37,120 INFO: Found 1 USB registry entries
+2025-12-29 15:29:37,553 INFO: Found 3 USB events in Event Log
+2025-12-29 15:29:37,554 INFO: Correlated 1 registry entries with 3 events into 2 device records
+2025-12-29 15:33:26,289 INFO: USB Forensics Tool started

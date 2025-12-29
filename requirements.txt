@@ -1,0 +1,19 @@
+# USB Forensics Tool Requirements - Professional Edition
+# ========================================================
+
+# Core Windows API support (REQUIRED for comprehensive device detection)
+pywin32>=300; sys_platform == 'win32'
+
+# GUI and Image Support (REQUIRED for professional interface)
+Pillow>=10.0.0           # Device image display and icon rendering
+
+# Report generation
+openpyxl>=3.0.0          # Excel/XLSX export support
+reportlab>=3.6.0         # PDF report generation
+
+# Optional but recommended
+python-dotenv>=0.19.0    # Environment configuration
+colorama>=0.4.4          # Colored terminal output
+
+# Note: pywin32 provides WMI access for comprehensive USB device enumeration
+# Without pywin32, the tool will use fallback mode with limited functionality
