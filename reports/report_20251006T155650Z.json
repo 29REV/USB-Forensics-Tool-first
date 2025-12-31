@@ -1,0 +1,42 @@
+[
+  {
+    "device_id": "AF74C8C8&0",
+    "name": null,
+    "vid": "Generic",
+    "pid": "Flash",
+    "serial": "AF74C8C8&0",
+    "first_seen": "2025-10-06T15:56:50.629779",
+    "last_seen": "2025-10-06T15:56:50.629779",
+    "total_connections": 0
+  },
+  {
+    "device_id": "03024621082323002741&0",
+    "name": null,
+    "vid": "SanDisk",
+    "pid": "Cruzer",
+    "serial": "03024621082323002741&0",
+    "first_seen": "2025-10-06T15:56:50.629890",
+    "last_seen": "2025-10-06T15:56:50.629890",
+    "total_connections": 0
+  },
+  {
+    "device_id": "0401219164c37e860bd57b90e856da145a732c0b7e2927efcea2ca2ed7ae4db",
+    "name": null,
+    "vid": "UNKNOWN",
+    "pid": "UNKNOWN",
+    "serial": "0401219164c37e860bd57b90e856da145a732c0b7e2927efcea2ca2ed7ae4db",
+    "first_seen": "2025-10-06T15:56:50.629941",
+    "last_seen": "2025-10-06T15:56:50.629941",
+    "total_connections": 0
+  },
+  {
+    "device_id": "SanDisk Ultra USB Device",
+    "name": "SanDisk Ultra USB Device",
+    "vid": null,
+    "pid": null,
+    "serial": null,
+    "first_seen": "2025-10-06T15:56:50.630571",
+    "last_seen": "2025-10-06T15:56:50.630571",
+    "total_connections": 2
+  }
+]
