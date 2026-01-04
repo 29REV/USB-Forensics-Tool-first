@@ -68,3 +68,4 @@ usb_forensics_tool/
 2. Data is combined and analyzed.
 3. Report is generated.
 4. User can interact through GUI.
+abc
