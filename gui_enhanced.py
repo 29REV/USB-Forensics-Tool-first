@@ -18,6 +18,8 @@ from tkinter import ttk, messagebox, filedialog, scrolledtext
 from tkinter import font as tkfont
 import threading
 import logging
+import time
+import os
 from datetime import datetime
 
 from usb_device_manager import get_all_usb_devices
@@ -29,6 +31,14 @@ from correlation import correlate
 from analysis import summarize, detect_suspicious
 from report_generator import write_csv, write_json, write_xlsx, write_pdf
 import settings
+
+# URB capture imports (may fail if dependencies not installed)
+try:
+    from urb_capture import URBCapture, URBTransfer, parse_etl_file
+    URB_CAPTURE_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"URB capture not available: {e}")
+    URB_CAPTURE_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +108,7 @@ class USBForensicsApp(tk.Tk):
         self._create_storage_forensics_page()
         self._create_timeline_page()
         self._create_analysis_page()
+        self._create_urb_capture_page()
         self._create_export_page()
         self._create_security_page()
         self._create_settings_page()
@@ -128,6 +139,7 @@ class USBForensicsApp(tk.Tk):
             ('storage', '💾 Storage Forensics', self._on_nav_storage),
             ('timeline', '📊 Timeline', self._on_nav_timeline),
             ('analysis', '🔍 Analysis', self._on_nav_analysis),
+            ('urb', '🔌 URB Capture', self._on_nav_urb),
             ('security', '🛡️ Security', self._on_nav_security),
             ('export', '📁 Export', self._on_nav_export),
             ('settings', '⚙️ Settings', self._on_nav_settings),
@@ -188,6 +200,9 @@ class USBForensicsApp(tk.Tk):
     def _on_nav_analysis(self):
         self.show_page('analysis')
     
+    def _on_nav_urb(self):
+        self.show_page('urb')
+    
     def _on_nav_security(self):
         self.show_page('security')
     
@@ -222,11 +237,11 @@ class USBForensicsApp(tk.Tk):
         ctrl_frame = ttk.Frame(page, style='Main.TFrame')
         ctrl_frame.pack(fill=tk.X, padx=20, pady=10)
         
-        btn_refresh = tk.Button(
+        self.btn_refresh = tk.Button(
             ctrl_frame, text="🔄 Scan Devices", command=self._scan_all_devices,
             bg='#3b82f6', fg='white', font=('Segoe UI', 10), padx=15, pady=8, relief=tk.FLAT, cursor='hand2'
         )
-        btn_refresh.pack(side=tk.LEFT, padx=5)
+        self.btn_refresh.pack(side=tk.LEFT, padx=5)
         
         btn_copy = tk.Button(
             ctrl_frame, text="📋 Copy Info", command=self._copy_device_info,
@@ -281,6 +296,9 @@ class USBForensicsApp(tk.Tk):
         self.device_tree.heading('Serial', text='Serial Number')
         self.device_tree.heading('Status', text='Status')
         
+        # Highlight portable devices (phones/tablets over MTP/WPD)
+        self.device_tree.tag_configure('portable', background='#fef3c7', foreground='#92400e')
+        
         self.device_tree.grid(row=0, column=0, sticky='nsew')
         vsb.grid(row=0, column=1, sticky='ns')
         hsb.grid(row=1, column=0, sticky='ew')
@@ -305,22 +323,93 @@ class USBForensicsApp(tk.Tk):
     
     def _scan_all_devices(self):
         """Scan all USB devices."""
+        if getattr(self, 'scanning', False):
+            return
+        # mark scanning and disable refresh button to prevent concurrent scans
+        self.scanning = True
+        try:
+            self.btn_refresh.config(state='disabled')
+        except Exception:
+            pass
         def scan_thread():
             try:
                 self.device_tree.delete(*self.device_tree.get_children())
                 devices = get_all_usb_devices()
-                self.current_devices = devices
+                # Strong dedupe at UI level (use same heuristics as device manager)
+                import re
+                def ui_key(d):
+                    try:
+                        vid = (d.vid or "").strip().lower()
+                        pid = (d.pid or "").strip().lower()
+                        serial = (d.serial or "").strip().lower()
+                        if serial:
+                            manu = (d.manufacturer or "").strip().lower()
+                            return f"serial:{serial}:{manu}"
+                        if getattr(d, 'hardware_ids', None):
+                            hids = ",".join(sorted(h.strip().lower() for h in d.hardware_ids if h))
+                            if hids:
+                                return f"hid:{vid}:{pid}:{hids}"
+                        devid = (d.device_id or "").strip().lower()
+                        if devid:
+                            m = re.search(r"(vid_[0-9a-f]{4}[^\\]*pid_[0-9a-f]{4})", devid)
+                            if m:
+                                base = m.group(1)
+                                parts = devid.split('\\')
+                                if len(parts) >= 3:
+                                    tail = parts[-1]
+                                    tail_clean = tail.split('&')[0] if '&' in tail else tail
+                                    tail_clean = tail_clean.strip()
+                                    if tail_clean:
+                                        return f"dev:{base}:{tail_clean}"
+                                return f"dev:{base}"
+                        return "|".join([
+                            (d.name or "").strip().lower(),
+                            (d.manufacturer or "").strip().lower(),
+                            (d.device_type or "").strip().lower(),
+                        ])
+                    except Exception:
+                        return (d.device_id or "").strip().lower() or f"{d.name}:{d.manufacturer}:{d.device_type}"
+
+                seen_keys = set()
+                deduped = []
+                for d in devices:
+                    key = ui_key(d)
+                    if key in seen_keys:
+                        continue
+                    seen_keys.add(key)
+                    deduped.append(d)
+
+                self.current_devices = deduped
+                seen_rows = set()
                 
-                for i, device in enumerate(devices, 1):
+                for i, device in enumerate(deduped, 1):
                     status = "Connected" if device.connection_status == "Connected" else "Disconnected"
-                    self.device_tree.insert('', 'end', text=str(i),
-                        values=(
-                            device.device_type or 'Unknown',
-                            device.manufacturer or 'Unknown',
-                            device.name or 'Unknown',
-                            device.serial or 'Unknown',
-                            status
-                        )
+                    
+                    # Format serial number display
+                    # Empty string = not available, show "N/A" for hubs/some devices, "Unknown" if we should have found it
+                    if device.serial:
+                        serial_display = device.serial
+                    elif device.device_type in ('hub', 'unknown'):
+                        serial_display = "N/A"  # Hubs and unknown devices typically don't have serials
+                    else:
+                        serial_display = "Unknown"  # For devices that should have serials but we couldn't find them
+                    
+                    row_values = (
+                        device.device_type or 'Unknown',
+                        device.manufacturer or 'Unknown',
+                        device.name or 'Unknown',
+                        serial_display,
+                        status
+                    )
+                    row_key = tuple(str(v).strip().lower() for v in row_values)
+                    if row_key in seen_rows:
+                        continue
+                    seen_rows.add(row_key)
+                    
+                    self.device_tree.insert(
+                        '', 'end', text=str(i),
+                        values=row_values,
+                        tags=('portable',) if device.device_type == 'portable' else ()
                     )
                 
                 logger.info(f"Scanned {len(devices)} USB devices")
@@ -328,7 +417,14 @@ class USBForensicsApp(tk.Tk):
             except Exception as e:
                 logger.error(f"Error scanning devices: {e}")
                 messagebox.showerror("Error", f"Failed to scan devices: {e}")
-        
+            finally:
+                # allow subsequent scans
+                self.scanning = False
+                try:
+                    self.btn_refresh.config(state='normal')
+                except Exception:
+                    pass
+
         thread = threading.Thread(target=scan_thread, daemon=True)
         thread.start()
     
@@ -373,7 +469,7 @@ Device Type:        {device.device_type or 'Unknown'}
 Manufacturer:       {device.manufacturer or 'Unknown'}
 Device Name:        {device.name or 'Unknown'}
 Device ID:          {device.device_id or 'Unknown'}
-Serial Number:      {device.serial or 'Unknown'}
+Serial Number:      {device.serial if device.serial else ('N/A' if device.device_type in ('hub', 'unknown') else 'Unknown')}
 Status:             {device.connection_status or 'Unknown'}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -651,6 +747,483 @@ Detailed analysis results will be displayed here including:
 """
         
         self.analysis_text.insert(tk.END, result)
+    
+    def _create_urb_capture_page(self):
+        """Create URB capture page."""
+        page = ttk.Frame(self.content_area, style='Main.TFrame')
+        self.pages['urb'] = page
+        
+        # Header
+        header = ttk.Frame(page, style='Main.TFrame')
+        header.pack(fill=tk.X, padx=20, pady=20)
+        ttk.Label(header, text="🔌 USB Request Block (URB) Capture", style='Header.TLabel').pack(anchor=tk.W)
+        
+        # Check availability
+        if not URB_CAPTURE_AVAILABLE:
+            info_frame = ttk.Frame(page, style='Main.TFrame')
+            info_frame.pack(fill=tk.X, padx=20, pady=10)
+            ttk.Label(
+                info_frame, 
+                text="⚠️ URB capture requires: pip install etl-parser\nAdministrator privileges required.",
+                foreground='#ef4444',
+                font=('Segoe UI', 10)
+            ).pack()
+            return
+        
+        # Control panel - Capture
+        ctrl_frame = ttk.Frame(page, style='Main.TFrame')
+        ctrl_frame.pack(fill=tk.X, padx=20, pady=10)
+        
+        capture_frame = ttk.LabelFrame(ctrl_frame, text="ETW Capture (Requires Admin Privileges)", padding=10)
+        capture_frame.pack(fill=tk.X, pady=5)
+        
+        admin_warning = ttk.Label(
+            capture_frame, 
+            text="⚠️ Creating new .etl files requires administrator privileges.",
+            font=('Segoe UI', 8),
+            foreground='#dc2626'
+        )
+        admin_warning.pack(anchor=tk.W, pady=(0, 5))
+        
+        duration_frame = ttk.Frame(capture_frame)
+        duration_frame.pack(fill=tk.X, pady=5)
+        
+        ttk.Label(duration_frame, text="Duration (seconds):", font=('Segoe UI', 9)).pack(side=tk.LEFT, padx=(0, 10))
+        self.urb_duration_var = tk.StringVar(value="60")
+        duration_entry = ttk.Entry(duration_frame, textvariable=self.urb_duration_var, width=10)
+        duration_entry.pack(side=tk.LEFT, padx=(0, 10))
+        
+        ttk.Label(duration_frame, text="(0 = manual stop)", font=('Segoe UI', 8), foreground='#6b7280').pack(side=tk.LEFT)
+        
+        btn_frame = ttk.Frame(capture_frame)
+        btn_frame.pack(fill=tk.X, pady=5)
+        
+        self.urb_start_btn = tk.Button(
+            btn_frame, text="▶️ Start Capture", command=self._start_urb_capture,
+            bg='#10b981', fg='white', font=('Segoe UI', 10), padx=15, pady=8, relief=tk.FLAT, cursor='hand2'
+        )
+        self.urb_start_btn.pack(side=tk.LEFT, padx=5)
+        
+        self.urb_stop_btn = tk.Button(
+            btn_frame, text="⏹️ Stop Capture", command=self._stop_urb_capture,
+            bg='#ef4444', fg='white', font=('Segoe UI', 10), padx=15, pady=8, 
+            relief=tk.FLAT, cursor='hand2', state=tk.DISABLED
+        )
+        self.urb_stop_btn.pack(side=tk.LEFT, padx=5)
+        
+        self.urb_status_label = ttk.Label(
+            capture_frame, text="Status: Ready", font=('Segoe UI', 9)
+        )
+        self.urb_status_label.pack(anchor=tk.W, pady=5)
+        
+        # Control panel - Parse ETL
+        parse_frame = ttk.LabelFrame(ctrl_frame, text="Parse Existing ETL File (No Admin Required)", padding=10)
+        parse_frame.pack(fill=tk.X, pady=5)
+        
+        info_label = ttk.Label(
+            parse_frame, 
+            text="ℹ️ You can parse existing .etl files without administrator privileges.",
+            font=('Segoe UI', 8),
+            foreground='#059669'
+        )
+        info_label.pack(anchor=tk.W, pady=(0, 5))
+        
+        parse_btn_frame = ttk.Frame(parse_frame)
+        parse_btn_frame.pack(fill=tk.X, pady=5)
+        
+        btn_browse = tk.Button(
+            parse_btn_frame, text="📂 Browse ETL File", command=self._browse_etl_file,
+            bg='#3b82f6', fg='white', font=('Segoe UI', 10), padx=15, pady=8, relief=tk.FLAT, cursor='hand2'
+        )
+        btn_browse.pack(side=tk.LEFT, padx=5)
+        
+        btn_parse = tk.Button(
+            parse_btn_frame, text="🔍 Parse ETL", command=self._parse_etl_file,
+            bg='#8b5cf6', fg='white', font=('Segoe UI', 10), padx=15, pady=8, relief=tk.FLAT, cursor='hand2'
+        )
+        btn_parse.pack(side=tk.LEFT, padx=5)
+        
+        self.urb_etl_path_label = ttk.Label(
+            parse_frame, text="No file selected", font=('Segoe UI', 9), foreground='#6b7280'
+        )
+        self.urb_etl_path_label.pack(anchor=tk.W, pady=5)
+        
+        # Real-time capture option
+        realtime_frame = ttk.LabelFrame(ctrl_frame, text="Real-time Capture", padding=10)
+        realtime_frame.pack(fill=tk.X, pady=5)
+        
+        self.urb_realtime_btn = tk.Button(
+            realtime_frame, text="🔄 Start Real-time", command=self._start_realtime_urb,
+            bg='#f59e0b', fg='white', font=('Segoe UI', 10), padx=15, pady=8, 
+            relief=tk.FLAT, cursor='hand2'
+        )
+        self.urb_realtime_btn.pack(side=tk.LEFT, padx=5)
+        
+        self.urb_realtime_stop_btn = tk.Button(
+            realtime_frame, text="⏹️ Stop Real-time", command=self._stop_realtime_urb,
+            bg='#ef4444', fg='white', font=('Segoe UI', 10), padx=15, pady=8, 
+            relief=tk.FLAT, cursor='hand2', state=tk.DISABLED
+        )
+        self.urb_realtime_stop_btn.pack(side=tk.LEFT, padx=5)
+        
+        # Results display
+        results_frame = ttk.Frame(page, style='Main.TFrame')
+        results_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+        
+        # URB list with treeview
+        list_frame = ttk.LabelFrame(results_frame, text="Captured URBs", padding=5)
+        list_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Treeview for URBs
+        tree_frame = ttk.Frame(list_frame)
+        tree_frame.pack(fill=tk.BOTH, expand=True)
+        
+        scrollbar = ttk.Scrollbar(tree_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        self.urb_tree = ttk.Treeview(
+            tree_frame,
+            columns=('timestamp', 'function', 'device', 'endpoint', 'length', 'status'),
+            show='headings',
+            yscrollcommand=scrollbar.set
+        )
+        scrollbar.config(command=self.urb_tree.yview)
+        
+        # Configure columns
+        self.urb_tree.heading('timestamp', text='Timestamp')
+        self.urb_tree.heading('function', text='Function')
+        self.urb_tree.heading('device', text='Device (VID:PID)')
+        self.urb_tree.heading('endpoint', text='Endpoint')
+        self.urb_tree.heading('length', text='Length')
+        self.urb_tree.heading('status', text='Status')
+        
+        self.urb_tree.column('timestamp', width=150)
+        self.urb_tree.column('function', width=250)
+        self.urb_tree.column('device', width=120)
+        self.urb_tree.column('endpoint', width=100)
+        self.urb_tree.column('length', width=80)
+        self.urb_tree.column('status', width=150)
+        
+        self.urb_tree.pack(fill=tk.BOTH, expand=True)
+        
+        # Bind double-click to show details
+        self.urb_tree.bind('<Double-1>', self._show_urb_details)
+        
+        # Details text area
+        details_frame = ttk.LabelFrame(results_frame, text="URB Details", padding=5)
+        details_frame.pack(fill=tk.BOTH, expand=True, pady=(10, 0))
+        
+        self.urb_details_text = scrolledtext.ScrolledText(
+            details_frame, wrap=tk.WORD, font=('Courier New', 9),
+            bg='#f9fafb', fg='#1f2937', height=10
+        )
+        self.urb_details_text.pack(fill=tk.BOTH, expand=True)
+        
+        # Initialize URB capture instance
+        self.urb_capture = None
+        self.urb_realtime_capture = None
+        self.captured_urbs = []
+        self.current_etl_file = None
+    
+    def _start_urb_capture(self):
+        """Start ETW capture to create .etl file."""
+        if not URB_CAPTURE_AVAILABLE:
+            messagebox.showerror("Error", "URB capture not available. Install etl-parser.")
+            return
+        
+        try:
+            duration = int(self.urb_duration_var.get())
+        except ValueError:
+            messagebox.showerror("Error", "Invalid duration. Please enter a number.")
+            return
+        
+        def capture_thread():
+            try:
+                self.urb_capture = URBCapture()
+                
+                if not self.urb_capture.is_available():
+                    messagebox.showerror(
+                        "Error", 
+                        "URB capture requires:\n"
+                        "- Administrator privileges\n"
+                        "- Windows system"
+                    )
+                    return
+                
+                self.urb_start_btn.config(state=tk.DISABLED)
+                self.urb_stop_btn.config(state=tk.NORMAL)
+                self.urb_status_label.config(text=f"Status: Capturing... (Duration: {duration}s)")
+                
+                # Start capture
+                trace_file = self.urb_capture.start_etw_capture(duration_seconds=duration)
+                
+                if trace_file:
+                    self.current_etl_file = trace_file
+                    self.urb_status_label.config(text=f"Status: Capturing to {trace_file}")
+                    
+                    if duration == 0:
+                        # Manual stop mode
+                        self.urb_status_label.config(text="Status: Capturing... (Click Stop to finish)")
+                    else:
+                        # Wait for duration
+                        time.sleep(duration)
+                        self._stop_urb_capture_internal()
+                else:
+                    messagebox.showerror("Error", "Failed to start ETW capture")
+                    self.urb_start_btn.config(state=tk.NORMAL)
+                    self.urb_stop_btn.config(state=tk.DISABLED)
+                    self.urb_status_label.config(text="Status: Error starting capture")
+                    
+            except Exception as e:
+                logger.error(f"Error starting URB capture: {e}", exc_info=True)
+                messagebox.showerror("Error", f"Failed to start capture: {e}")
+                self.urb_start_btn.config(state=tk.NORMAL)
+                self.urb_stop_btn.config(state=tk.DISABLED)
+                self.urb_status_label.config(text="Status: Error")
+        
+        threading.Thread(target=capture_thread, daemon=True).start()
+    
+    def _stop_urb_capture(self):
+        """Stop ETW capture."""
+        self._stop_urb_capture_internal()
+    
+    def _stop_urb_capture_internal(self):
+        """Internal method to stop capture."""
+        try:
+            if self.urb_capture:
+                self.urb_capture.stop_etw_capture()
+                
+                if self.current_etl_file and os.path.exists(self.current_etl_file):
+                    self.urb_status_label.config(
+                        text=f"Status: Capture complete. File: {self.current_etl_file}"
+                    )
+                    self.urb_etl_path_label.config(text=f"Last capture: {self.current_etl_file}")
+                    # Auto-parse the captured file
+                    self._parse_etl_file_internal(self.current_etl_file)
+                else:
+                    self.urb_status_label.config(text="Status: Capture stopped")
+            else:
+                self.urb_status_label.config(text="Status: No active capture")
+                
+            self.urb_start_btn.config(state=tk.NORMAL)
+            self.urb_stop_btn.config(state=tk.DISABLED)
+            
+        except Exception as e:
+            logger.error(f"Error stopping URB capture: {e}", exc_info=True)
+            messagebox.showerror("Error", f"Failed to stop capture: {e}")
+    
+    def _browse_etl_file(self):
+        """Browse for ETL file to parse."""
+        filename = filedialog.askopenfilename(
+            title="Select ETL File",
+            filetypes=[("ETL files", "*.etl"), ("All files", "*.*")]
+        )
+        if filename:
+            self.current_etl_file = filename
+            self.urb_etl_path_label.config(text=f"Selected: {os.path.basename(filename)}")
+    
+    def _parse_etl_file(self):
+        """Parse selected ETL file."""
+        if not self.current_etl_file:
+            messagebox.showwarning("No File", "Please select an ETL file first")
+            return
+        
+        if not os.path.exists(self.current_etl_file):
+            messagebox.showerror("Error", "ETL file not found")
+            return
+        
+        self._parse_etl_file_internal(self.current_etl_file)
+    
+    def _parse_etl_file_internal(self, etl_file: str):
+        """Internal method to parse ETL file."""
+        def parse_thread():
+            try:
+                self.after(0, lambda: self.urb_status_label.config(text="Status: Parsing ETL file..."))
+                
+                # Parsing doesn't require admin privileges - only creating .etl files does
+                # Create a URBCapture instance just for parsing (no admin check needed)
+                capture = URBCapture()
+                urbs = capture.parse_etl_file(etl_file)
+                
+                # Update UI with parsed URBs
+                self.after(0, self._update_urb_list, urbs)
+                
+                if urbs:
+                    self.after(0, lambda: self.urb_status_label.config(text=f"Status: Successfully parsed {len(urbs)} URBs"))
+                else:
+                    self.after(0, lambda: self.urb_status_label.config(text="Status: No URBs found in file (may need etl-parser library)"))
+                    self.after(0, lambda: messagebox.showinfo(
+                        "Parse Complete", 
+                        "Parsed the ETL file but found 0 URBs.\n\n"
+                        "This could mean:\n"
+                        "- The file doesn't contain USB events\n"
+                        "- etl-parser library may need to be installed: pip install etl-parser\n"
+                        "- The ETW trace was not captured with USB providers"
+                    ))
+                
+            except ImportError as e:
+                logger.error(f"Missing dependency for parsing: {e}", exc_info=True)
+                self.after(0, lambda: messagebox.showerror(
+                    "Missing Dependency", 
+                    f"Failed to parse ETL file: {e}\n\n"
+                    "Please install the required library:\n"
+                    "  pip install etl-parser"
+                ))
+                self.after(0, lambda: self.urb_status_label.config(text="Status: Parse error - missing etl-parser"))
+            except Exception as e:
+                logger.error(f"Error parsing ETL file: {e}", exc_info=True)
+                self.after(0, lambda: messagebox.showerror("Error", f"Failed to parse ETL file:\n{str(e)}"))
+                self.after(0, lambda: self.urb_status_label.config(text="Status: Parse error"))
+        
+        threading.Thread(target=parse_thread, daemon=True).start()
+    
+    def _update_urb_list(self, urbs: list):
+        """Update the URB treeview with parsed URBs."""
+        # Clear existing items
+        for item in self.urb_tree.get_children():
+            self.urb_tree.delete(item)
+        
+        self.captured_urbs = urbs
+        
+        # Add URBs to treeview
+        for urb in urbs:
+            timestamp = urb.timestamp.split('T')[0] if 'T' in urb.timestamp else urb.timestamp[:10]
+            device_str = f"{urb.vid}:{urb.pid}" if urb.vid and urb.pid else "Unknown"
+            endpoint_str = f"{urb.endpoint_address:02X} ({urb.endpoint_direction})"
+            length_str = f"{urb.transfer_buffer_length} bytes"
+            
+            item_id = self.urb_tree.insert(
+                '', tk.END,
+                values=(
+                    timestamp,
+                    urb.urb_function_name,
+                    device_str,
+                    endpoint_str,
+                    length_str,
+                    urb.status_name
+                )
+            )
+            # Store URB object in item (using tags or keep reference by index)
+        
+        logger.info(f"Updated URB list with {len(urbs)} URBs")
+    
+    def _show_urb_details(self, event):
+        """Show detailed URB information."""
+        selection = self.urb_tree.selection()
+        if not selection:
+            return
+        
+        item = selection[0]
+        index = self.urb_tree.index(item)
+        
+        if 0 <= index < len(self.captured_urbs):
+            urb = self.captured_urbs[index]
+            
+            # Format detailed information
+            details = f"""
+URB DETAILS
+{'='*70}
+
+Timestamp:        {urb.timestamp}
+Function:         {urb.urb_function_name} (0x{urb.urb_function:04X})
+Status:           {urb.status_name} (0x{urb.status:08X})
+Device ID:        {urb.device_id}
+VID:PID:          {urb.vid}:{urb.pid}
+Endpoint:         {urb.endpoint_address:02X} ({urb.endpoint_direction})
+Transfer Length:  {urb.transfer_buffer_length} bytes
+Actual Length:    {urb.actual_length} bytes
+Interval:         {urb.interval}
+Start Frame:      {urb.start_frame}
+Packets:          {urb.number_of_packets}
+Error Count:      {urb.error_count}
+Timeout:          {urb.timeout} ms
+Process ID:       {urb.process_id}
+Thread ID:        {urb.thread_id}
+
+"""
+            if urb.setup_packet:
+                details += f"""
+SETUP PACKET (Control Transfer)
+{'='*70}
+Request Type:     0x{urb.request_type:02X}
+Request:          0x{urb.request:02X}
+Value:            0x{urb.value:04X}
+Index:            0x{urb.index:04X}
+Length:           0x{urb.length:04X}
+"""
+            
+            if urb.transfer_buffer:
+                buffer_hex = urb.transfer_buffer.hex()[:512]  # Limit display
+                details += f"""
+TRANSFER BUFFER (first 256 bytes)
+{'='*70}
+{bytes(urb.transfer_buffer[:256]).hex(' ', 1)}
+"""
+            
+            self.urb_details_text.delete('1.0', tk.END)
+            self.urb_details_text.insert('1.0', details)
+    
+    def _start_realtime_urb(self):
+        """Start real-time URB capture."""
+        if not URB_CAPTURE_AVAILABLE:
+            messagebox.showerror("Error", "URB capture not available")
+            return
+        
+        def on_urb_captured(urb: URBTransfer):
+            """Callback for real-time URB capture."""
+            self.after(0, self._add_realtime_urb, urb)
+        
+        try:
+            self.urb_realtime_capture = URBCapture()
+            
+            if not self.urb_realtime_capture.is_available():
+                messagebox.showerror("Error", "Real-time capture requires administrator privileges")
+                return
+            
+            if self.urb_realtime_capture.start_realtime_capture(on_urb_captured):
+                self.urb_realtime_btn.config(state=tk.DISABLED)
+                self.urb_realtime_stop_btn.config(state=tk.NORMAL)
+                self.urb_status_label.config(text="Status: Real-time capture active")
+            else:
+                messagebox.showerror("Error", "Failed to start real-time capture")
+                
+        except Exception as e:
+            logger.error(f"Error starting real-time capture: {e}", exc_info=True)
+            messagebox.showerror("Error", f"Failed to start real-time capture: {e}")
+    
+    def _stop_realtime_urb(self):
+        """Stop real-time URB capture."""
+        try:
+            if self.urb_realtime_capture:
+                self.urb_realtime_capture.stop_realtime_capture()
+                self.urb_realtime_btn.config(state=tk.NORMAL)
+                self.urb_realtime_stop_btn.config(state=tk.DISABLED)
+                self.urb_status_label.config(text="Status: Real-time capture stopped")
+        except Exception as e:
+            logger.error(f"Error stopping real-time capture: {e}", exc_info=True)
+            messagebox.showerror("Error", f"Failed to stop real-time capture: {e}")
+    
+    def _add_realtime_urb(self, urb: URBTransfer):
+        """Add URB from real-time capture to the list."""
+        self.captured_urbs.append(urb)
+        
+        # Add to treeview
+        timestamp = urb.timestamp.split('T')[0] if 'T' in urb.timestamp else urb.timestamp[:10]
+        device_str = f"{urb.vid}:{urb.pid}" if urb.vid and urb.pid else "Unknown"
+        endpoint_str = f"{urb.endpoint_address:02X} ({urb.endpoint_direction})"
+        length_str = f"{urb.transfer_buffer_length} bytes"
+        
+        self.urb_tree.insert(
+            '', tk.END,
+            values=(
+                timestamp,
+                urb.urb_function_name,
+                device_str,
+                endpoint_str,
+                length_str,
+                urb.status_name
+            )
+        )
     
     def _create_security_page(self):
         """Create security advisory page."""

@@ -8,6 +8,9 @@ This module provides advanced USB device detection capabilities including:
 """
 import platform
 import logging
+import subprocess
+import json
+import re
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
 from datetime import datetime
@@ -99,6 +102,10 @@ def classify_device_type(device_info: Dict[str, Any]) -> str:
     if pnp_class == 'ports':
         return 'serial'
     
+    # Portable devices (phones/tablets over MTP)
+    if pnp_class == 'wpd' or 'mtp' in name or 'mtp' in desc or 'portable device' in desc:
+        return 'portable'
+    
     return 'unknown'
 
 
@@ -115,6 +122,191 @@ def extract_vid_pid(device_id: str) -> tuple:
     except Exception:
         pass
     return vid, pid
+
+
+def extract_serial_from_device_id(device_id: str) -> str:
+    """Extract serial number from DeviceID string.
+    
+    For storage devices: USB\VID_XXXX&PID_XXXX\SERIALNUMBER
+    For other devices: May be in different format or not available
+    
+    Args:
+        device_id: Device ID string from WMI
+        
+    Returns:
+        Serial number string or empty string if not found
+    """
+    if not device_id:
+        return ""
+    
+    try:
+        # Pattern 1: USB\VID_XXXX&PID_XXXX\SERIAL (most common for storage)
+        # Split by backslash to get components
+        parts = device_id.split('\\')
+        
+        if len(parts) >= 3:
+            # Third part after VID&PID could be serial
+            serial_part = parts[2]
+            
+            # Check if it looks like an instance ID (contains &) or a serial
+            if '&' in serial_part:
+                # Instance ID format - serial may be embedded or need registry lookup
+                # Sometimes serial is in format: X&XXXXXXXX&X&X where middle part is encoded
+                return ""
+            elif len(serial_part) > 4:
+                # Likely a serial number if it's long enough and no special chars
+                # Filter out common instance ID patterns
+                if not serial_part.startswith(('6&', '5&', '4&')) and '&' not in serial_part:
+                    return serial_part
+            elif len(serial_part) > 0:
+                # Short serial numbers (some devices have short serials)
+                return serial_part
+        
+        # Pattern 2: Check for serial in middle components
+        # Some DeviceIDs have format: USB\VID_XXXX&PID_XXXX\XXXX\SERIAL
+        if len(parts) >= 4:
+            potential_serial = parts[3]
+            if len(potential_serial) > 4 and '&' not in potential_serial:
+                return potential_serial
+                
+    except Exception as e:
+        logger.debug(f"Error extracting serial from DeviceID: {e}")
+    
+    return ""
+
+
+def get_serial_from_registry(vid: str, pid: str, device_id: str, device_type: str = "") -> str:
+    """Try to get serial number from Windows registry.
+    
+    For storage devices, check USBSTOR registry keys.
+    For other devices, check USB registry keys.
+    
+    Args:
+        vid: Vendor ID
+        pid: Product ID  
+        device_id: Full device ID
+        device_type: Device type (storage, input, etc.)
+        
+    Returns:
+        Serial number or empty string
+    """
+    if not vid or not pid:
+        return ""
+    
+    try:
+        import winreg
+        
+        # Try USBSTOR first (storage devices)
+        if device_type == 'storage':
+            try:
+                base = winreg.ConnectRegistry(None, winreg.HKEY_LOCAL_MACHINE)
+                usbstor_path = r"SYSTEM\CurrentControlSet\Enum\USBSTOR"
+                usbstor_key = winreg.OpenKey(base, usbstor_path)
+                
+                # Look for VID_PID pattern
+                vid_pid_pattern = f"VID_{vid.upper()}&PID_{pid.upper()}"
+                
+                try:
+                    i = 0
+                    while True:
+                        subkey_name = winreg.EnumKey(usbstor_key, i)
+                        if vid_pid_pattern in subkey_name.upper():
+                            # Open the subkey and check instances
+                            subkey = winreg.OpenKey(usbstor_key, subkey_name)
+                            try:
+                                j = 0
+                                while True:
+                                    instance = winreg.EnumKey(subkey, j)
+                                    # Instance name is often the serial number for storage devices
+                                    if len(instance) > 4 and '&' not in instance:
+                                        # Additional check: make sure this matches our device
+                                        if instance in device_id or device_id.endswith(instance):
+                                            return instance
+                                    j += 1
+                            except OSError:
+                                pass
+                            finally:
+                                winreg.CloseKey(subkey)
+                        i += 1
+                except OSError:
+                    pass
+                finally:
+                    winreg.CloseKey(usbstor_key)
+            except (PermissionError, FileNotFoundError, OSError) as e:
+                logger.debug(f"Could not access USBSTOR registry: {e}")
+        
+        # Try general USB registry for all device types
+        try:
+            base = winreg.ConnectRegistry(None, winreg.HKEY_LOCAL_MACHINE)
+            usb_path = r"SYSTEM\CurrentControlSet\Enum\USB"
+            usb_key = winreg.OpenKey(base, usb_path)
+            
+            vid_pid_pattern = f"VID_{vid.upper()}&PID_{pid.upper()}"
+            
+            try:
+                i = 0
+                while True:
+                    subkey_name = winreg.EnumKey(usb_key, i)
+                    if vid_pid_pattern in subkey_name.upper():
+                        subkey = winreg.OpenKey(usb_key, subkey_name)
+                        try:
+                            j = 0
+                            while True:
+                                instance = winreg.EnumKey(subkey, j)
+                                
+                                # Check if this instance matches our device
+                                # DeviceID often ends with instance or contains it
+                                if instance in device_id or device_id.endswith(instance):
+                                    # Try to get serial from registry value first
+                                    try:
+                                        instkey = winreg.OpenKey(subkey, instance)
+                                        try:
+                                            serial, _ = winreg.QueryValueEx(instkey, "SerialNumber")
+                                            if serial and len(str(serial)) > 0:
+                                                winreg.CloseKey(instkey)
+                                                return str(serial)
+                                        except (OSError, FileNotFoundError):
+                                            pass
+                                        
+                                        # Also check for ParentIdPrefix which sometimes contains serial info
+                                        try:
+                                            parent_id, _ = winreg.QueryValueEx(instkey, "ParentIdPrefix")
+                                            if parent_id and len(str(parent_id)) > 4:
+                                                # Sometimes serial is in parent ID prefix
+                                                serial_candidate = str(parent_id)
+                                                if '&' not in serial_candidate:
+                                                    winreg.CloseKey(instkey)
+                                                    return serial_candidate
+                                        except (OSError, FileNotFoundError):
+                                            pass
+                                        
+                                        winreg.CloseKey(instkey)
+                                        
+                                        # If no SerialNumber value, instance name might be serial
+                                        # But only if it looks like a serial (not instance ID with &)
+                                        if '&' not in instance and len(instance) > 4:
+                                            return instance
+                                    except (OSError, FileNotFoundError):
+                                        # If we can't open instance key, instance name might still be serial
+                                        if '&' not in instance and len(instance) > 4:
+                                            return instance
+                                j += 1
+                        except OSError:
+                            pass
+                        finally:
+                            winreg.CloseKey(subkey)
+                    i += 1
+            except OSError:
+                pass
+            finally:
+                winreg.CloseKey(usb_key)
+        except (PermissionError, FileNotFoundError, OSError) as e:
+            logger.debug(f"Could not access USB registry: {e}")
+            
+    except Exception as e:
+        logger.debug(f"Error getting serial from registry: {e}")
+    
+    return ""
 
 
 def get_usb_speed(device_info: Dict[str, Any]) -> str:
@@ -150,8 +342,17 @@ def get_all_usb_devices_wmi() -> List[USBDevice]:
         wmi = win32com.client.Dispatch("WbemScripting.SWbemLocator")
         service = wmi.ConnectServer(".", "root\\cimv2")
         
-        # Query all PnP devices
-        query = "SELECT * FROM Win32_PnPEntity WHERE DeviceID LIKE '%USB%' OR Service LIKE '%USB%'"
+        # Query PnP devices including USB and Portable (WPD/MTP) devices
+        query = (
+            "SELECT * FROM Win32_PnPEntity WHERE "
+            "DeviceID LIKE '%USB%' OR "
+            "PNPDeviceID LIKE '%USB%' OR "
+            "PNPDeviceID LIKE 'USBSTOR%' OR "
+            "PNPDeviceID LIKE 'SWD\\\\WPDBUSENUM%' OR "
+            "PNPClass = 'WPD' OR "
+            "Service LIKE '%USB%' OR "
+            "Service LIKE '%Wpd%'"
+        )
         usb_devices = service.ExecQuery(query)
         
         for device in usb_devices:
@@ -175,6 +376,29 @@ def get_all_usb_devices_wmi() -> List[USBDevice]:
                 
                 device_type = classify_device_type(device_info)
                 speed = get_usb_speed(device_info)
+                
+                # Extract serial number - try multiple methods
+                serial = extract_serial_from_device_id(device_id)
+                if not serial:
+                    # Try registry lookup (requires registry access, may fail without admin)
+                    serial = get_serial_from_registry(vid, pid, device_id, device_type)
+                
+                # If still no serial, try to get from WMI DeviceID property directly
+                if not serial:
+                    try:
+                        # Some devices expose serial in the PNPDeviceID or other properties
+                        if hasattr(device, 'PNPDeviceID'):
+                            pnp_id = str(device.PNPDeviceID)
+                            serial = extract_serial_from_device_id(pnp_id)
+                    except Exception:
+                        pass
+                
+                # Clean up serial - remove any invalid characters
+                if serial:
+                    # Remove common unwanted patterns
+                    serial = serial.strip()
+                    # Some serials have trailing/leading slashes or backslashes
+                    serial = serial.strip('\\/')
                 
                 # Get hardware IDs if available
                 hardware_ids = []
@@ -200,6 +424,7 @@ def get_all_usb_devices_wmi() -> List[USBDevice]:
                     device_type=device_type,
                     vid=vid,
                     pid=pid,
+                    serial=serial if serial else "",  # Set serial number
                     status=status,
                     speed=speed,
                     device_class=pnp_class,
@@ -224,10 +449,170 @@ def get_all_usb_devices_wmi() -> List[USBDevice]:
     return devices
 
 
+def get_all_usb_devices_powershell() -> List[USBDevice]:
+    """Fallback USB/WPD device detection via PowerShell (Windows only)."""
+    devices: List[USBDevice] = []
+    
+    ps_script = (
+        "$devices = Get-PnpDevice -PresentOnly | "
+        "Where-Object { "
+        "$_.InstanceId -like 'USB*' -or "
+        "$_.InstanceId -like 'USBSTOR*' -or "
+        "$_.InstanceId -like 'SWD\\\\WPDBUSENUM*' -or "
+        "$_.Class -eq 'WPD' -or "
+        "$_.Service -like '*Wpd*' -or "
+        "$_.Service -like '*USB*' "
+        "} | Select-Object InstanceId, FriendlyName, Class, Manufacturer, Status, Service, Description; "
+        "$devices | ConvertTo-Json -Compress"
+    )
+    
+    try:
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", ps_script],
+            capture_output=True,
+            text=True,
+            check=False
+        )
+        if result.returncode != 0 or not result.stdout.strip():
+            logger.warning(f"PowerShell device query failed: {result.stderr.strip()}")
+            return devices
+        
+        data = json.loads(result.stdout)
+        if isinstance(data, dict):
+            data = [data]
+        
+        for item in data:
+            try:
+                device_id = str(item.get("InstanceId") or "")
+                name = str(item.get("FriendlyName") or "Unknown Device")
+                description = str(item.get("Description") or name)
+                manufacturer = str(item.get("Manufacturer") or "Unknown")
+                status = str(item.get("Status") or "Unknown")
+                pnp_class = str(item.get("Class") or "")
+                service = str(item.get("Service") or "")
+                
+                vid, pid = extract_vid_pid(device_id)
+                
+                device_info = {
+                    'name': name,
+                    'description': description,
+                    'device_class': pnp_class,
+                    'pnp_class': pnp_class
+                }
+                
+                device_type = classify_device_type(device_info)
+                speed = get_usb_speed(device_info)
+                serial = extract_serial_from_device_id(device_id)
+                
+                usb_device = USBDevice(
+                    device_id=device_id,
+                    name=name,
+                    description=description,
+                    manufacturer=manufacturer,
+                    device_type=device_type,
+                    vid=vid,
+                    pid=pid,
+                    serial=serial if serial else "",
+                    status=status,
+                    speed=speed,
+                    device_class=pnp_class,
+                    service=service,
+                    connection_status="Connected"
+                )
+                
+                devices.append(usb_device)
+            except Exception as e:
+                logger.error(f"Error processing PowerShell device: {e}")
+                continue
+    except Exception as e:
+        logger.error(f"PowerShell device detection failed: {e}")
+    
+    logger.info(f"Found {len(devices)} USB devices via PowerShell")
+    return devices
+
+
 def get_all_usb_devices() -> List[USBDevice]:
     """Get all USB devices - cross-platform wrapper."""
+    def _key(dev: USBDevice) -> str:
+        """Create a normalized key for deduplication.
+
+        Priority:
+        1. Serial (when available) + VID:PID
+        2. Hardware IDs + VID:PID
+        3. Normalized VID:PID + instance suffix (if parseable)
+        4. Fallback to name+manufacturer+device_type
+        """
+        try:
+            vid = (dev.vid or "").strip().lower()
+            pid = (dev.pid or "").strip().lower()
+            serial = (dev.serial or "").strip().lower()
+
+            if serial:
+                # Deduplicate primarily by serial only; allow merging across sources
+                return f"serial:{serial}"
+
+            if dev.hardware_ids:
+                hids = ",".join(sorted(h.strip().lower() for h in dev.hardware_ids if h))
+                if hids:
+                    return f"hid:{vid}:{pid}:{hids}"
+
+            devid = (dev.device_id or "").strip().lower()
+            if devid:
+                # Try to extract vid/pid block
+                m = re.search(r"(vid_[0-9a-f]{4}[^\\]*pid_[0-9a-f]{4})", devid)
+                if m:
+                    base = m.group(1)
+                    # Use trailing instance component if it looks like a serial (no &)
+                    parts = devid.split('\\')
+                    if len(parts) >= 3:
+                        tail = parts[-1]
+                        tail_clean = tail.split('&')[0] if '&' in tail else tail
+                        tail_clean = tail_clean.strip()
+                        if tail_clean:
+                            return f"dev:{base}:{tail_clean}"
+                    return f"dev:{base}"
+
+            # Fallback
+            return "|".join([
+                (dev.name or "").strip().lower(),
+                (dev.manufacturer or "").strip().lower(),
+                (dev.device_type or "").strip().lower(),
+            ])
+        except Exception:
+            return (dev.device_id or "").strip().lower() or f"{dev.name}:{dev.manufacturer}:{dev.device_type}"
+
     if platform.system() == 'Windows':
-        return get_all_usb_devices_wmi()
+        devices = get_all_usb_devices_wmi() if WMI_AVAILABLE else []
+        if not devices:
+            devices = get_all_usb_devices_powershell()
+        if not devices:
+            return get_mock_usb_devices()
+
+        # Merge devices by key; when duplicates found, prefer non-empty fields
+        merged: Dict[str, USBDevice] = {}
+        for d in devices:
+            key = _key(d)
+            if key in merged:
+                existing = merged[key]
+                # Merge simple scalar fields if missing in existing
+                for attr in ['device_id','name','description','manufacturer','device_type','vid','pid','serial','status','driver_version','location','speed','power_consumption','device_class','service','connection_status']:
+                    val = getattr(existing, attr, None)
+                    newval = getattr(d, attr, None)
+                    if (not val or val == '') and newval:
+                        setattr(existing, attr, newval)
+                # Merge lists
+                for list_attr in ['capabilities','hardware_ids','compatible_ids']:
+                    ev = getattr(existing, list_attr, []) or []
+                    nv = getattr(d, list_attr, []) or []
+                    combined = ev[:]
+                    for item in nv:
+                        if item and item not in combined:
+                            combined.append(item)
+                    setattr(existing, list_attr, combined)
+            else:
+                merged[key] = d
+
+        return list(merged.values())
     else:
         logger.warning("Non-Windows platform - returning mock data")
         return get_mock_usb_devices()

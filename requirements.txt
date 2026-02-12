@@ -15,5 +15,9 @@ reportlab>=3.6.0         # PDF report generation
 python-dotenv>=0.19.0    # Environment configuration
 colorama>=0.4.4          # Colored terminal output
 
+# USB URB Capture (REQUIRED for URB analysis)
+etl-parser>=1.0.0        # For parsing .etl files and extracting USB Request Blocks
+
 # Note: pywin32 provides WMI access for comprehensive USB device enumeration
 # Without pywin32, the tool will use fallback mode with limited functionality
+# Note: URB capture requires administrator privileges and Windows system
