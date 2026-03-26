@@ -19,6 +19,11 @@ A lightweight Python tool to analyze USB device activity on Windows systems by p
   - Numeric anomaly scoring (0-100 scale) with multi-factor analysis
 - **Multiple Export Formats**: CSV (now with 23 columns), JSON, XLSX, PDF, Detailed JSON
 - **GUI & CLI Modes**: User-friendly Tkinter GUI or command-line interface with enhanced reporting
+- **Optional Wireshark USB Behaviour Analysis** ⭐ NEW:
+   - Inspect USB enumeration and handshake flow from saved captures
+   - Detect packet-level suspicious USB communication patterns
+   - Add next-level summaries such as "USB connected + performed suspicious communication pattern"
+   - Runs only when you explicitly enable it and provide a capture file
 - **Cross-Platform Support**: Gracefully falls back to mock data on non-Windows systems
 
 ## Requirements
