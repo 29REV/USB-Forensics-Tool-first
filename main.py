@@ -15,6 +15,7 @@ Release: December 2025
 import sys
 import os
 import logging
+import ctypes
 
 # Add current directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -27,9 +28,28 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _enable_high_dpi() -> None:
+    """Opt into native DPI rendering so Tk UI is not bitmap-scaled and blurry."""
+    if sys.platform != 'win32':
+        return
+
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)
+        return
+    except Exception:
+        pass
+
+    try:
+        ctypes.windll.user32.SetProcessDPIAware()
+    except Exception:
+        pass
+
+
 def main():
     """Main entry point - show splash screen then launch GUI."""
     try:
+        _enable_high_dpi()
+
         # Import and show splash screen
         logger.info("Loading splash screen...")
         from splash import show_splash

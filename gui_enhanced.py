@@ -19,6 +19,23 @@ import os
 
 from gui.app import USBForensicsApp
 
+
+def _enable_high_dpi():
+    if sys.platform != 'win32':
+        return
+
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)
+        return
+    except Exception:
+        pass
+
+    try:
+        ctypes.windll.user32.SetProcessDPIAware()
+    except Exception:
+        pass
+
+
 def is_admin():
     try:
         return ctypes.windll.shell32.IsUserAnAdmin()
@@ -26,6 +43,8 @@ def is_admin():
         return False
 
 if __name__ == '__main__':
+    _enable_high_dpi()
+
     if sys.platform == 'win32' and not is_admin():
         # Re-run the program with admin rights
         script = os.path.abspath(sys.argv[0])
