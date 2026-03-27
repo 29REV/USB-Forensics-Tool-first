@@ -9,12 +9,22 @@ Exports:
     parse_registry: Main function to parse USB devices from Windows registry
 """
 from dataclasses import dataclass, asdict
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import platform
 import traceback
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def _registry_filetime_to_iso(filetime_100ns: int) -> str:
+    """Convert Windows FILETIME (100ns since 1601-01-01 UTC) to ISO timestamp."""
+    if not filetime_100ns:
+        return datetime.utcnow().isoformat()
+
+    epoch = datetime(1601, 1, 1, tzinfo=timezone.utc)
+    dt = epoch + timedelta(microseconds=filetime_100ns / 10)
+    return dt.astimezone(timezone.utc).isoformat()
 
 
 @dataclass
@@ -50,6 +60,10 @@ def parse_registry() -> list[USBRegistryEntry]:
     Raises:
         No exceptions raised; always returns a list (may be empty or mock data)
     """
+    if platform.system() != "Windows":
+        logger.debug("Non-Windows system detected, using mock registry entries")
+        return _mock_registry_entries()
+
     try:
         import winreg
 
@@ -76,7 +90,8 @@ def parse_registry() -> list[USBRegistryEntry]:
                             vid = _extract_vid(sub)
                             pid = _extract_pid(sub)
                             serial = instance
-                            last_write = datetime.utcnow().isoformat()
+                            last_write_raw = winreg.QueryInfoKey(instkey)[2]
+                            last_write = _registry_filetime_to_iso(last_write_raw)
                             drive_letter = None
                             entries.append(USBRegistryEntry(instance, vid, pid, serial, last_write, drive_letter))
                         except Exception as e:
@@ -88,9 +103,8 @@ def parse_registry() -> list[USBRegistryEntry]:
         except OSError:
             pass
 
-        result = entries or _mock_registry_entries()
-        logger.info(f"Found {len(result)} USB registry entries")
-        return result
+        logger.info(f"Found {len(entries)} USB registry entries")
+        return entries
     except Exception as e:
         logger.error(f"Registry parsing failed: {e}", exc_info=True)
         return _mock_registry_entries()

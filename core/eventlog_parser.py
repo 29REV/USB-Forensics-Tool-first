@@ -71,9 +71,8 @@ def parse_event_logs() -> list[EventEntry]:
         finally:
             win32evtlog.CloseEventLog(hand)
             
-        result = events or _mock_events()
-        logger.info(f"Found {len(result)} USB events in Event Log")
-        return result
+        logger.info(f"Found {len(events)} USB events in Event Log")
+        return events
     except Exception as e:
         logger.warning(f"Event log parsing failed: {e}. Using mock data.")
         return _mock_events()

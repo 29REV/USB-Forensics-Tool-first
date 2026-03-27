@@ -1,6 +1,11 @@
 import tkinter as tk
 from tkinter import ttk
 import logging
+import os
+import sys
+
+if sys.platform == 'win32':
+    import ctypes
 
 from gui.pages.devices_page import DevicesPage
 from gui.pages.storage_page import StoragePage
@@ -15,6 +20,11 @@ from utils.settings import load_settings
 
 logger = logging.getLogger(__name__)
 
+
+def _resource_path(*parts: str) -> str:
+    base_dir = getattr(sys, '_MEIPASS', os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    return os.path.join(base_dir, *parts)
+
 class USBForensicsApp(tk.Tk):
     """Professional USB Forensics Application with Modern Side Panel."""
     
@@ -25,6 +35,7 @@ class USBForensicsApp(tk.Tk):
         self.title("USB Forensics Tool - Professional Edition")
         self.geometry("1400x900")
         self.configure(bg="#ffffff")
+        self._set_window_icon()
         
         self.resizable(True, True)
         self.settings = load_settings()
@@ -36,6 +47,30 @@ class USBForensicsApp(tk.Tk):
         self._create_main_layout()
         
         logger.info("USB Forensics GUI initialized")
+
+    def _set_window_icon(self):
+        """Set branded app icon for title bar and taskbar on Windows."""
+        if sys.platform == 'win32':
+            try:
+                ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("USBForensics.Tool.Professional")
+            except Exception:
+                pass
+
+        ico_path = _resource_path('assets', 'app_icon.ico')
+        png_path = _resource_path('assets', 'app_icon.png')
+
+        try:
+            if os.path.exists(ico_path):
+                self.iconbitmap(default=ico_path)
+        except Exception:
+            pass
+
+        try:
+            if os.path.exists(png_path):
+                self._icon_photo = tk.PhotoImage(file=png_path)
+                self.iconphoto(True, self._icon_photo)
+        except Exception:
+            pass
     
     def _setup_styles(self):
         """Setup modern styling."""
