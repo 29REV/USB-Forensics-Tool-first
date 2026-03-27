@@ -1,0 +1,341 @@
+include::attributes.adoc[]
+:stylesheet: ws.css
+:linkcss:
+:copycss: {css_dir}/{stylesheet}
+
+= Wireshark {wireshark-version} Release Notes
+// Asciidoctor Syntax Quick Reference:
+// https://asciidoctor.org/docs/asciidoc-syntax-quick-reference/
+
+== What is Wireshark?
+
+Wireshark is the world’s most popular network protocol analyzer.
+It is used for troubleshooting, analysis, development and education.
+
+Wireshark is hosted by the Wireshark Foundation, a nonprofit which promotes protocol analysis education.
+Wireshark and the foundation depend on your contributions in order to do their work.
+If you or your organization would like to contribute or become a sponsor, please visit https://wiresharkfoundation.org[wiresharkfoundation.org].
+
+If you use Wireshark professionally or you just want to learn more about protocol analysis, you should join us at https://sharkfest.wireshark.org/[SharkFest], the Wireshark developer and user conference.
+
+You can also become a Wireshark Certified Analyst! Official Wireshark training and certification are available from
+https://www.wireshark.org/certifications[the Wireshark Foundation].
+
+== What’s New
+
+// Uncomment for the last release(s) of this branch.
+// This is the last release with official support for Windows 10 and Windows Server 2016.
+
+=== Bug Fixes
+
+// The following vulnerabilities have been fixed:
+
+* wssalink:2026-05[] {notable}
+USB HID dissector memory exhaustion.
+wsbuglink:20972[].
+cveidlink:2026-3201[].
+// Fixed in master: f87c426b30
+// Fixed in release-4.6: 168bf05775
+// Fixed in release-4.4: 5e80615ebc
+// CVSS AV:L/AC:H/PR:N/UI:R/S:U/C:N/I:N/A:H
+// CWE-1325
+// * USB-HID: Resource exhaustion in parse_report_descriptor() due to missing array size limit. wsbuglink:20972[].
+
+* wssalink:2026-06[] {notable}
+NTS-KE dissector crash.
+wsbuglink:21000[].
+cveidlink:2026-3202[].
+// Fixed in master: 5fdfc57804
+// Fixed in release-4.6: 73d4e7eaff
+// Fixed in release-4.4: n/a
+// CVSS AV:L/AC:H/PR:N/UI:R/S:U/C:N/I:N/A:H
+// CWE-476
+// * Fuzz job crash: fuzz-2026-02-05-12996899075.pcap. wsbuglink:21000[].
+
+* wssalink:2026-07[] {notable}
+RF4CE Profile dissector crash.
+wsbuglink:21009[].
+cveidlink:2026-3203[].
+// Fixed in master: 17215397c1
+// Fixed in release-4.6: 0c4c5a531f
+// Fixed in release-4.4: d487e0e07b
+// CVSS AV:L/AC:L/PR:N/UI:R/S:U/C:N/I:N/A:H
+// CWE-126
+// * Fuzz job crash: fuzz-2026-02-06-13021968622.pcap. wsbuglink:21009[].
+
+// * wssalink:2026-08[] {notable}
+// Foo dissector {crash,infinite loop,memory leak}.
+// wsbuglink:xxx[].
+// cveidlink:2026-xxx[].
+// Fixed in master: xxx
+// Fixed in release-4.6: xxx
+// Fixed in release-4.4: xxx
+// CVSS AV:L/AC:L/PR:N/UI:R/S:U/C:N/I:N/A:H
+// CWE-824
+
+The following bugs have been fixed:
+
+//* wsbuglink:5000[]
+//* wsbuglink:6000[Wireshark bug]
+//* cveidlink:2014-2486[]
+// Bugs with the {notable} attribute show up in the "What's Changed" box on the download page.
+//* Wireshark contains traces of nuts. What kind of nuts? The kind you're allergic to. wsbuglink:5000[] {notable}
+
+* Wireshark doesn't start if Npcap is configured with "Restrict Npcap driver's Access to Administrators only" wsbuglink:20828[]. {notable}
+* PQC signature algorithm not reported in signature_algorithms. wsbuglink:20953[].
+* Unexpected JA4 ALPN values when space characters sent. wsbuglink:20966[].
+* Expert Info seems to have quadratic performance (gets slower and slower) wsbuglink:20970[]. {notable}
+* IKEv2 EMERGENCY_CALL_NUMBERS Notify payload cannot be decoded. wsbuglink:20974[].
+* TShark and editcap fails with segmentation fault when output format (-F) set to blf. wsbuglink:20976[].
+* Fuzz job crash: fuzz-2026-02-01-12944805400.pcap [Zigbee Direct Tunneling Zigbee NWK PDUs NULL hash table] wsbuglink:20977[].
+* Wiretap writes pcapng custom options with string values invalidly. wsbuglink:20978[].
+* RDM status in Output Status (GoodOutputB) field incorrectly decoded in Art-Net PollReply dissector. wsbuglink:20980[].
+* Wiretap writes invalid pcapng Darwin option blocks. wsbuglink:20991[].
+* TDS dissector desynchronizes on RPC DATENTYPE (0x28) due to incorrect expectation of TYPE_VARLEN (MaxLen) wsbuglink:21001[].
+* Only first HTTP POST is parsed inside SOCKS with "Decode As". wsbuglink:21006[].
+* TShark: Bogus "Dissector bug" messages generated in pipelines where something after tshark exits before reading all its input. wsbuglink:21011[].
+* New Diameter RAT-Types in TS 29.212 not decoded. wsbuglink:21012[].
+* Malformed packet error on Trigger HE Basic frames. wsbuglink:21032[].
+
+// == Known Bugs
+
+// === New and Updated Features
+
+// === Removed Features and Support
+
+// === Removed Dissectors
+
+=== New Protocol Support
+
+There are no new protocols in this release.
+
+=== Updated Protocol Support
+
+// Add one protocol per line between the -- delimiters.
+// rg -A1 '(define PSNAME|proto_register_protocol[^_])' $(git diff --name-only v4.6.4.. | rg packet- | sort -u)
+[commaize]
+--
+Art-Net
+AT
+BGP
+GSM DTAP
+GSM SIM
+IEEE 802.11
+IPv6
+ISAKMP
+MBIM
+MySQL
+NAS-5GS
+NTS-KE
+SGP.22
+Silabs DCH
+Socks
+TDS
+TECMP
+USB HID
+ZBD
+ZB TLV
+--
+
+=== New and Updated Capture File Support
+
+// There is no new or updated capture file support in this release.
+// Add one file type per line between the -- delimiters.
+[commaize]
+--
+BLF
+pcapng
+TTL
+--
+
+=== New and Updated File Format Decoding Support
+
+There is no new or updated file format support in this release.
+// Add one file type per line between the -- delimiters.
+// [commaize]
+// --
+// --
+
+// === New and Updated Capture Interfaces support
+
+// [commaize]
+// --
+// --
+
+//=== New and Updated Codec support
+
+//_Non-empty section placeholder._
+
+// === Major API Changes
+
+== Prior Versions
+
+Wireshark 4.6.3 included the following changes.
+See the
+https://www.wireshark.org/docs/relnotes/wireshark-4.6.3.html[release notes]
+for details:
+
+* wssalink:2026-01[]
+BLF file parser crash.
+wsbuglink:20880[].
+
+* wssalink:2026-02[]
+IEEE 802.11 dissector crash.
+wsbuglink:20939[].
+
+* wssalink:2026-03[]
+SOME/IP-SD dissector crash.
+wsbuglink:20945[].
+
+* wssalink:2026-04[]
+HTTP3 dissector infinite loop.
+wsbuglink:20944[].
+
+* Wireshark 4.6.0 build fails on Solaris: pcapio.c:441:21: error: request for member '_flag' in something not a structure or union. wsbuglink:20773[].
+* RTP Player streams cannot be stopped. wsbuglink:20879[].
+* Additional ABI/API compatibility fixes. wsbuglink:20881[].
+* Missing data in pinfo->cinfo in HomePlug message CM_ATTEN_CHAR.IND. wsbuglink:20893[].
+* maxmind_db: crash when switching from a profile where it's disabled to one where it's enabled. wsbuglink:20903[].
+* Compilation warning or error if CFLAGS defines _FORTIFY_SOURCE to other than 3 without first undefining it. wsbuglink:20904[].
+* IEEE 802.11: Incorrect parsing of QoS and Mesh Control Field when the frame body contains an A-MSDU. wsbuglink:20905[].
+* OSS-Fuzz 473164101: Heap-buffer-overflow in dissect_idn_laser_data. wsbuglink:20936[].
+* Bug in decoding 5G NAS message - Extended CAG information list IE. wsbuglink:20946[].
+
+Wireshark 4.6.2 included the following changes.
+See the
+https://www.wireshark.org/docs/relnotes/wireshark-4.6.2.html[release notes]
+for details:
+
+This release fixes an API/ABI change that was introduced in Wireshark 4.6.1, which caused a compatibility issue with plugins built for Wireshark 4.6.0. wsbuglink:20881[].
+
+* wssalink:2025-07[]
+HTTP3 dissector crash.
+wsbuglink:20860[].
+
+* wssalink:2025-08[]
+MEGACO dissector infinite loop.
+wsbuglink:20884[].
+
+* ws_base32_decode should be named *_encode ? wsbuglink:20754[].
+* Omnipeek files not working in 4.6.1. wsbuglink:20876[].
+* Stack buffer overflow in wiretap/ber.c (ber_open) wsbuglink:20878[].
+* Plugins incompatibility between 4.6.0 & 4.6.1. wsbuglink:20881[].
+* Fuzz job crash: fuzz-2025-11-30-12266121180.pcap. wsbuglink:20883[].
+
+* The Windows installers now ship with the Visual C++ Redistributable version 14.44.35112.
+  They previously shipped with 14.40.33807.
+
+Wireshark 4.6.1 included the following changes.
+See the
+https://www.wireshark.org/docs/relnotes/wireshark-4.6.1.html[release notes]
+for details:
+
+* wssalink:2025-05[] BPv7 dissector crash. wsbuglink:20770[].
+* wssalink:2025-06[] Kafka dissector crash. wsbuglink:20823[].
+
+* L2CAP dissector doesn't understand retransmission mode. wsbuglink:2241[].
+* DNS HIP dissector labels PK algorithm as HIT length. wsbuglink:20768[].
+* clang-cl error in "packet-zbee-direct.c" wsbuglink:20776[].
+* Writing to an LZ4-compressed output file might fail. wsbuglink:20779[].
+* endian.h conflics with libc for building plugins. wsbuglink:20786[].
+* TShark crash caused by Lua plugin. wsbuglink:20794[].
+* Wireshark stalls for a few seconds when selecting specific messages. wsbuglink:20797[].
+* TLS Abbreviated Handshake Using New Session Ticket. wsbuglink:20802[].
+* Custom websocket dissector does not run. wsbuglink:20803[].
+* WINREG QueryValue triggers dissector bug in packet-dcerpc.c. wsbuglink:20813[].
+* Lua: FileHandler causing crash when reading packets. wsbuglink:20817[].
+* Apply As Filter for field with FT_NONE and BASE_NONE for a single byte does not use the hex value. wsbuglink:20818[].
+* Layout preference Pane 3 problem with selecting Packet Diagram or None. wsbuglink:20819[].
+* TCP dissector creates invalid packet diagram. wsbuglink:20820[].
+* Too many nested VLAN tags when opening as File Format. wsbuglink:20831[].
+* Omnipeek files not working in 4.6.0. wsbuglink:20842[].
+* Support UTF-16 strings in the IsoBus dissector for the string operations. wsbuglink:20845[].
+* SNMP getBulkRequest request-id does not get filtered for correctly. wsbuglink:20849[].
+* Fuzz job issue: fuzz-2025-11-12-12064814316.pcap. wsbuglink:20852[].
+* UDP Port 853 (DoQ) should be decoded as QUIC. wsbuglink:20856[].
+
+Wireshark 4.6.0 included the following changes.
+See the
+https://www.wireshark.org/docs/relnotes/wireshark-4.6.0.html[release notes]
+for details:
+
+Wireshark can dissect process information, packet metadata, flow IDs, drop information, and other information provided by `tcpdump` on macOS.
+
+We now ship universal macOS installers instead of separate packages for Arm64 and Intel. wsbuglink:17294[]
+
+WinPcap is no longer supported. On Windows, use Npcap instead, uninstalling WinPcap if necessary.
+The final release of WinPcap was version 4.1.3 in 2013.
+It only supports up to Windows 8, which is no longer supported by Microsoft or Wireshark.
+
+A new “Plots” dialog has been added, which provides scatter plots in contrast to the “I/O Graphs” dialog, which provides histograms.
+The Plots dialog window supports multiple plots, markers, and automatic scrolling.
+
+Live captures can be compressed while writing. (Previously there was
+support for compressing when performing multiple file capture, at file
+rotation time.) The `--compress` option in TShark works on live captures
+as well. wsbuglink:9311[]
+
+Wireshark can now decrypt NTP packets using NTS (Network Time Security). To decrypt packets,
+the NTS-KE (Network Time Security Key Establishment Protocol) packets need to be present,
+alongside the TLS client and exporter secrets.
+
+Wireshark’s ability to decrypt MACsec packets has been expanded to either
+use the SAK unwrapped by the MKA dissector, or the PSK configured in the
+MACsec dissector.
+
+The TCP Stream Graph axes now use units with SI prefixes. wsbuglink:20197[]
+
+Display filter functions `float` and `double` are added to allow explicitly
+converting field types like integers and times to single and double precision
+floats.
+
+A menu:Edit[Copy,as HTML] menu item has been added, along with associated context menu items and a keyboard shortcut.
+
+The Conversations and Endpoints dialogs have an option to display byte counts and bit rates in exact counts instead of human-readable numbers with SI units.
+
+The color scheme can be set to Light or Dark mode independently of the current OS default on Windows and macOS, if Wireshark is built with Qt 6.8 or later as the official installers are. wsbuglink:19328[]
+
+== Getting Wireshark
+
+Wireshark source code and installation packages are available from
+https://www.wireshark.org/download.html.
+
+=== Vendor-supplied Packages
+
+Most Linux and Unix vendors supply their own Wireshark packages.
+You can usually install or upgrade Wireshark using the package management system specific to that platform.
+A list of third-party packages can be found on the
+https://www.wireshark.org/download.html[download page]
+on the Wireshark web site.
+
+== File Locations
+
+Wireshark and TShark look in several different locations for preference files, plugins, SNMP MIBS, and RADIUS dictionaries.
+These locations vary from platform to platform.
+You can use menu:Help[About Wireshark,Folders] or `tshark -G folders` to find the default locations on your system.
+
+== Getting Help
+
+The User’s Guide, manual pages and various other documentation can be found at
+https://www.wireshark.org/docs/
+
+Community support is available on
+https://ask.wireshark.org/[Wireshark’s Q&A site]
+and on the wireshark-users mailing list.
+Subscription information and archives for all of Wireshark’s mailing lists can be found on https://lists.wireshark.org/lists/[the mailing list site].
+
+Bugs and feature requests can be reported on
+https://gitlab.com/wireshark/wireshark/-/issues[the issue tracker].
+
+You can learn protocol analysis and meet Wireshark’s developers at
+https://sharkfest.wireshark.org[SharkFest].
+
+== How You Can Help
+
+The Wireshark Foundation helps as many people as possible understand their networks as much as possible.
+You can find out more and donate at https://wiresharkfoundation.org[wiresharkfoundation.org].
+
+== Frequently Asked Questions
+
+A complete FAQ is available on the
+https://www.wireshark.org/faq.html[Wireshark web site].

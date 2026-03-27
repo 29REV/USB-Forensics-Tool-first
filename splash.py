@@ -6,6 +6,13 @@ import tkinter as tk
 from tkinter import font as tkfont
 import time
 import threading
+import os
+import sys
+
+
+def _resource_path(*parts: str) -> str:
+    base_dir = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base_dir, *parts)
 
 
 def show_splash():
@@ -14,6 +21,20 @@ def show_splash():
     root.title("USB Forensics Tool")
     root.geometry("600x400")
     root.resizable(False, False)
+
+    ico_path = _resource_path('assets', 'app_icon.ico')
+    png_path = _resource_path('assets', 'app_icon.png')
+    try:
+        if os.path.exists(ico_path):
+            root.iconbitmap(default=ico_path)
+    except Exception:
+        pass
+    try:
+        if os.path.exists(png_path):
+            icon_photo = tk.PhotoImage(file=png_path)
+            root.iconphoto(True, icon_photo)
+    except Exception:
+        icon_photo = None
     
     # Center window on screen
     root.update_idletasks()

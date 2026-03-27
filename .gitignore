@@ -1,0 +1,16 @@
+# Python cache artifacts
+__pycache__/
+**/__pycache__/
+*.py[cod]
+
+# Build artifacts
+build/
+dist/
+USBForensics-IconEdition.spec
+
+# Local environments and IDE state
+.venv/
+.vs/
+
+# Local runtime logs
+app.log
