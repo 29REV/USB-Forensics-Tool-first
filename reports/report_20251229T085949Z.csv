@@ -1,0 +1,6 @@
+USB Forensics Report
+Generated: report_20251229T085949Z.csv
+""
+Device Name,Device ID,Vendor ID (VID),Product ID (PID),Serial Number,Drive Letter,First Seen (UTC),Last Seen (UTC),Total Connections,Suspicious
+,4C530000130516200463&0,SanDisk,Cruzer,4C530000130516200463&0,,2025-12-29T08:59:48.774265,2025-12-29T08:59:48.774265,0,
+SanDisk Ultra USB Device,SanDisk Ultra USB Device,,,,,2025-12-29T08:59:49.198850,2025-12-29T08:59:49.198850,2,

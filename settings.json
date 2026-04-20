@@ -1,0 +1,7 @@
+{
+  "show_splash": true,
+  "reports_dir": "reports",
+  "wireshark_enabled": false,
+  "wireshark_tshark_path": "",
+  "wireshark_capture_file": ""
+}

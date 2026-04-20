@@ -1,0 +1,3 @@
+# Keywords
+
+USB Forensics, Digital Forensics, Endpoint Forensics, Removable Media Investigation, Windows Registry Analysis, Windows Event Log Analysis, USBSTOR Artifacts, Device Enumeration, USB Device Correlation, Timeline Reconstruction, Forensic Data Normalization, Anomaly Scoring, Suspicious Device Detection, Insider Threat Investigation, Data Exfiltration Indicators, BadUSB Pattern Analysis, USB Communication Heuristics, URB Capture, ETW Trace Parsing, Wireshark USB Analysis, tshark JSON Parsing, Multi-format Report Generation, CSV Forensics Reporting, JSON Evidence Export, XLSX Report Automation, PDF Forensic Summaries, Modular Forensics Architecture, Incident Response Support.

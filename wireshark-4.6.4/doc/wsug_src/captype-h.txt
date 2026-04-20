@@ -1,0 +1,9 @@
+Captype (Wireshark) 4.6.4 (v4.6.4rc0-3-g4857e26d586d)
+Print the file types of capture files.
+See https://www.wireshark.org for more information.
+
+Usage: captype [options] <infile> ...
+
+Miscellaneous:
+  -h, --help               display this help and exit
+  -v, --version            display version info and exit
